@@ -38,17 +38,17 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   void initState() {
     super.initState();
-    _startServer(); // Iniciar el servidor automáticamente cuando se abre la aplicación
+    _startServer();
   }
 
   @override
   void dispose() {
-    _stopServer(); // Detener el servidor cuando la aplicación se cierra
+    _stopServer();
     super.dispose();
   }
 
   Future<void> _startServer() async {
-    if (_isServerRunning) return; // Evitar reiniciar si ya está en ejecución
+    if (_isServerRunning) return;
 
     final service = Service();
     final server = await shelf_io.serve(
@@ -59,20 +59,20 @@ class _MyHomePageState extends State<MyHomePage> {
       _server = server;
       _ipAddress = ipAddress.toString();
       _serverAccess = '$_ipAddress:$_serverPort';
-      _isServerRunning = true;  // El servidor está corriendo.
+      _isServerRunning = true;
     });
 
     print('Servidor iniciado en: http://$_serverAccess');
   }
 
   Future<void> _stopServer() async {
-    if (!_isServerRunning) return; // Evitar detener si ya está apagado
+    if (!_isServerRunning) return;
 
     await _server?.close();
     setState(() {
       _server = null;
       _serverAccess = 'Servidor detenido';
-      _isServerRunning = false;  // El servidor está detenido.
+      _isServerRunning = false;
     });
 
     print('Servidor detenido');
@@ -127,27 +127,26 @@ class _MyHomePageState extends State<MyHomePage> {
               style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 20),
-            // Botones para iniciar y detener el servidor
-            if (!_isServerRunning) // Botón para iniciar el servidor si no está corriendo
+            if (!_isServerRunning)
               IconButton(
                 icon: Icon(Icons.play_arrow, color: Colors.green, size: 50),
                 onPressed: _startServer,
               )
-            else // Botón para detener el servidor si está corriendo
+            else
               IconButton(
                 icon: Icon(Icons.stop, color: Colors.red, size: 50),
                 onPressed: _stopServer,
               ),
             const SizedBox(height: 20),
-            // Botón para refrescar la dirección IP
-            if (_isServerRunning) ElevatedButton.icon(
-              onPressed: _refreshServerAccess,
-              icon: Icon(Icons.refresh),
-              label: Text('Actualizar IP'),
-              style: ElevatedButton.styleFrom(
-                foregroundColor: Colors.blueAccent,
+            if (_isServerRunning)
+              ElevatedButton.icon(
+                onPressed: _refreshServerAccess,
+                icon: Icon(Icons.refresh),
+                label: Text('Actualizar IP'),
+                style: ElevatedButton.styleFrom(
+                  foregroundColor: Colors.blueAccent,
+                ),
               ),
-            ),
             const SizedBox(height: 20),
             const Text(
               'SOLICITUDES DISPONIBLES',
