@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:restprinter/service.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart'; // Asegúrate de tener el paquete instalado
 
 void main() {
   runApp(MyApp());
@@ -35,9 +37,16 @@ class _MyHomePageState extends State<MyHomePage> {
   HttpServer? _server;
   bool _isServerRunning = false;
 
+  // Bluetooth-related variables
+  List<BluetoothInfo> _pairedDevices = [];
+  String? _selectedDeviceMacAddress;
+
   @override
   void initState() {
     super.initState();
+    _loadPairedDevices().then((e) => {
+       _loadSavedDevice()
+    });
     _startServer();
   }
 
@@ -50,7 +59,7 @@ class _MyHomePageState extends State<MyHomePage> {
   Future<void> _startServer() async {
     if (_isServerRunning) return;
 
-    final service = Service();
+    final service = Service(this.showSnackBarMessage);
     final server = await shelf_io.serve(
         service.handler, InternetAddress.anyIPv4, _serverPort);
     final ipAddress = await _getLocalIpAddress();
@@ -78,6 +87,11 @@ class _MyHomePageState extends State<MyHomePage> {
     print('Servidor detenido');
   }
 
+  Future<void> _refresh() async {
+    _refreshServerAccess();
+    _loadPairedDevices();
+  }
+
   Future<void> _refreshServerAccess() async {
     if (_isServerRunning) {
       final ipAddress = await _getLocalIpAddress();
@@ -86,9 +100,13 @@ class _MyHomePageState extends State<MyHomePage> {
         _serverAccess = '$_ipAddress:$_serverPort';
       });
     }
+    showSnackBarMessage('IP actualizada: $_serverAccess');
+  }
+
+  void showSnackBarMessage(message){
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('IP actualizada: $_serverAccess'),
+        content: Text(message),
       ),
     );
   }
@@ -103,6 +121,39 @@ class _MyHomePageState extends State<MyHomePage> {
       }
     }
     return 'No se encontró IP local';
+  }
+
+  Future<void> _loadPairedDevices() async {
+    final List<BluetoothInfo> pairedDevices =
+    await PrintBluetoothThermal.pairedBluetooths;
+
+    setState(() {
+      _pairedDevices = pairedDevices;
+    });
+  }
+
+  // Save selected Bluetooth device in SharedPreferences
+  Future<void> _saveSelectedDevice(BluetoothInfo device) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('selected_device_name', device.name);
+    await prefs.setString('selected_device_mac_address', device.macAdress);
+    setState(() {
+      _selectedDeviceMacAddress = device.macAdress;
+    });
+  }
+
+  // Load the saved Bluetooth device from SharedPreferences
+  Future<void> _loadSavedDevice() async {
+    final prefs = await SharedPreferences.getInstance();
+    String? macAddress = prefs.getString('selected_device_mac_address');
+    if (macAddress != null) {
+      bool isExistsSelectedDeviceInCurrentDevices = this._pairedDevices.where((p) => p.macAdress == macAddress).isNotEmpty;
+      if (isExistsSelectedDeviceInCurrentDevices) {
+        setState(() {
+        _selectedDeviceMacAddress = macAddress;
+      });
+      }
+    }
   }
 
   @override
@@ -126,7 +177,7 @@ class _MyHomePageState extends State<MyHomePage> {
               _serverAccess,
               style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 10),
             if (!_isServerRunning)
               IconButton(
                 icon: Icon(Icons.play_arrow, color: Colors.green, size: 50),
@@ -137,15 +188,32 @@ class _MyHomePageState extends State<MyHomePage> {
                 icon: Icon(Icons.stop, color: Colors.red, size: 50),
                 onPressed: _stopServer,
               ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 10),
             if (_isServerRunning)
               ElevatedButton.icon(
-                onPressed: _refreshServerAccess,
+                onPressed: _refresh,
                 icon: Icon(Icons.refresh),
-                label: Text('Actualizar IP'),
+                label: Text('Actualizar'),
                 style: ElevatedButton.styleFrom(
                   foregroundColor: Colors.blueAccent,
                 ),
+              ),
+            const SizedBox(height: 20),
+            if (_pairedDevices.isNotEmpty)
+              DropdownButton<String>(
+                value: _selectedDeviceMacAddress,
+                hint: Text("Seleccionar dispositivo Bluetooth"),
+                onChanged: (String? newAddress) {
+                  final selectedDevice = _pairedDevices.firstWhere(
+                          (device) => device.macAdress == newAddress);
+                  _saveSelectedDevice(selectedDevice);
+                },
+                items: _pairedDevices.map((BluetoothInfo device) {
+                  return DropdownMenuItem<String>(
+                    value: device.macAdress, // Use address as the value
+                    child: Text(device.name),
+                  );
+                }).toList(),
               ),
             const SizedBox(height: 20),
             const Text(
