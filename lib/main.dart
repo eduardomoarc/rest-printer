@@ -33,20 +33,23 @@ class _MyHomePageState extends State<MyHomePage> {
   String _serverAccess = 'Cargando...';
   int _serverPort = 8000;
   HttpServer? _server;
+  bool _isServerRunning = false;
 
   @override
   void initState() {
     super.initState();
-    _startServer();
+    _startServer(); // Iniciar el servidor automáticamente cuando se abre la aplicación
   }
 
   @override
   void dispose() {
-    _server?.close();
+    _stopServer(); // Detener el servidor cuando la aplicación se cierra
     super.dispose();
   }
 
   Future<void> _startServer() async {
+    if (_isServerRunning) return; // Evitar reiniciar si ya está en ejecución
+
     final service = Service();
     final server = await shelf_io.serve(
         service.handler, InternetAddress.anyIPv4, _serverPort);
@@ -56,9 +59,38 @@ class _MyHomePageState extends State<MyHomePage> {
       _server = server;
       _ipAddress = ipAddress.toString();
       _serverAccess = '$_ipAddress:$_serverPort';
+      _isServerRunning = true;  // El servidor está corriendo.
     });
 
     print('Servidor iniciado en: http://$_serverAccess');
+  }
+
+  Future<void> _stopServer() async {
+    if (!_isServerRunning) return; // Evitar detener si ya está apagado
+
+    await _server?.close();
+    setState(() {
+      _server = null;
+      _serverAccess = 'Servidor detenido';
+      _isServerRunning = false;  // El servidor está detenido.
+    });
+
+    print('Servidor detenido');
+  }
+
+  Future<void> _refreshServerAccess() async {
+    if (_isServerRunning) {
+      final ipAddress = await _getLocalIpAddress();
+      setState(() {
+        _ipAddress = ipAddress;
+        _serverAccess = '$_ipAddress:$_serverPort';
+      });
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('IP actualizada: $_serverAccess'),
+      ),
+    );
   }
 
   Future<String> _getLocalIpAddress() async {
@@ -78,6 +110,8 @@ class _MyHomePageState extends State<MyHomePage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Printer Server"),
+        foregroundColor: Colors.white,
+        backgroundColor: Colors.blueAccent,
       ),
       body: Center(
         child: Column(
@@ -93,10 +127,32 @@ class _MyHomePageState extends State<MyHomePage> {
               style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 20),
+            // Botones para iniciar y detener el servidor
+            if (!_isServerRunning) // Botón para iniciar el servidor si no está corriendo
+              IconButton(
+                icon: Icon(Icons.play_arrow, color: Colors.green, size: 50),
+                onPressed: _startServer,
+              )
+            else // Botón para detener el servidor si está corriendo
+              IconButton(
+                icon: Icon(Icons.stop, color: Colors.red, size: 50),
+                onPressed: _stopServer,
+              ),
+            const SizedBox(height: 20),
+            // Botón para refrescar la dirección IP
+            if (_isServerRunning) ElevatedButton.icon(
+              onPressed: _refreshServerAccess,
+              icon: Icon(Icons.refresh),
+              label: Text('Actualizar IP'),
+              style: ElevatedButton.styleFrom(
+                foregroundColor: Colors.blueAccent,
+              ),
+            ),
+            const SizedBox(height: 20),
             const Text(
               'SOLICITUDES DISPONIBLES',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 16),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const Text(
               '/hello [GET] (Probar conexion)',
