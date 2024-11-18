@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:restprinter/service.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -33,7 +34,9 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   String _ipAddress = '';
   String _serverAccess = 'Cargando...';
-  int _serverPort = 8000;
+
+  final int _serverPort = 8443;
+  final String _schema = 'https';
   HttpServer? _server;
   bool _isServerRunning = false;
 
@@ -59,19 +62,25 @@ class _MyHomePageState extends State<MyHomePage> {
   Future<void> _startServer() async {
     if (_isServerRunning) return;
 
+    final securityContext = await this._getSecurityContext();
     final service = Service(this.showSnackBarMessage);
-    final server = await shelf_io.serve(
-        service.handler, InternetAddress.anyIPv4, _serverPort);
+
+    final server = await HttpServer.bindSecure(
+      InternetAddress.anyIPv4,
+      _serverPort, // Puerto
+      securityContext,
+    );
+    shelf_io.serveRequests(server, service.handler);
     final ipAddress = await _getLocalIpAddress();
 
     setState(() {
       _server = server;
       _ipAddress = ipAddress.toString();
-      _serverAccess = '$_ipAddress:$_serverPort';
+      _serverAccess = '$_schema://$_ipAddress:$_serverPort';
       _isServerRunning = true;
     });
 
-    print('Servidor iniciado en: http://$_serverAccess');
+    print('Servidor iniciado en: $_serverAccess');
   }
 
   Future<void> _stopServer() async {
@@ -92,12 +101,22 @@ class _MyHomePageState extends State<MyHomePage> {
     _loadPairedDevices();
   }
 
+  Future<SecurityContext> _getSecurityContext() async {
+    final cert = await rootBundle.loadString('assets/cert.pem');
+    final key = await rootBundle.loadString('assets/key.pem');
+
+    final securityContext = SecurityContext()
+      ..useCertificateChainBytes(cert.codeUnits)
+      ..usePrivateKeyBytes(key.codeUnits);
+    return securityContext;
+  }
+
   Future<void> _refreshServerAccess() async {
     if (_isServerRunning) {
       final ipAddress = await _getLocalIpAddress();
       setState(() {
         _ipAddress = ipAddress;
-        _serverAccess = '$_ipAddress:$_serverPort';
+        _serverAccess = '$_schema://$_ipAddress:$_serverPort';
       });
     }
     showSnackBarMessage('IP actualizada: $_serverAccess');
