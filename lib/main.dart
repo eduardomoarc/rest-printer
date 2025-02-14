@@ -35,8 +35,8 @@ class _MyHomePageState extends State<MyHomePage> {
   String _ipAddress = '';
   String _serverAccess = 'Cargando...';
 
-  final int _serverPort = 8443;
-  final String _schema = 'https';
+  final int _serverPort = 8000;
+  final String _schema = 'http';
   HttpServer? _server;
   bool _isServerRunning = false;
 
@@ -62,13 +62,13 @@ class _MyHomePageState extends State<MyHomePage> {
   Future<void> _startServer() async {
     if (_isServerRunning) return;
 
-    final securityContext = await this._getSecurityContext();
+    // final securityContext = await this._getSecurityContext();
     final service = Service(this.showSnackBarMessage);
 
-    final server = await HttpServer.bindSecure(
+    final server = await HttpServer.bind(
       InternetAddress.anyIPv4,
-      _serverPort, // Puerto
-      securityContext,
+      _serverPort // Puerto
+      // securityContext,
     );
     shelf_io.serveRequests(server, service.handler);
     final ipAddress = await _getLocalIpAddress();
@@ -103,11 +103,12 @@ class _MyHomePageState extends State<MyHomePage> {
 
   Future<SecurityContext> _getSecurityContext() async {
     final cert = await rootBundle.loadString('assets/cert.pem');
-    final key = await rootBundle.loadString('assets/key.pem');
+    final key = await rootBundle.loadString('assets/privkey.pem');
 
     final securityContext = SecurityContext()
       ..useCertificateChainBytes(cert.codeUnits)
-      ..usePrivateKeyBytes(key.codeUnits);
+      ..usePrivateKeyBytes(key.codeUnits)
+    ;
     return securityContext;
   }
 
